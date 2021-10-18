@@ -5,6 +5,7 @@ using Assets.Scripts.PeroTools.Nice.Interface;
 using Discord;
 using HarmonyLib;
 using ModHelper;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using UnityEngine.Events;
@@ -19,7 +20,8 @@ namespace DiscordPlus
 			896044493839679498L, // 41 - 
 		};
 		public static int ClientSelected = 0;
-
+		public static bool IsTagsLoaded = false;
+		public static JToken Tags = null;
         public static void DoPatching()
         {
             var harmony = new Harmony("com.github.mo10.discordplus");
@@ -34,9 +36,27 @@ namespace DiscordPlus
         }
 
 		public static void DiscordPrefix(ref long clientId, ref ulong flags)
-        {
-            clientId = ClientIds[ClientSelected];
-        }
+		{
+			clientId = ClientIds[ClientSelected];
+			if (!IsTagsLoaded)
+			{
+				IsTagsLoaded = true;
+				WebUtils.SendToUrl(
+					url: "https://mdmc.moe/api/tags",
+					method: "GET",
+					failTime: 10,
+					callback: handler =>
+					{
+						ModLogger.Debug(handler.text);
+						Tags = JsonUtils.Deserialize<JToken>(handler.text);
+					},
+					faillCallback: reason =>
+					{
+						ModLogger.Debug($"Send request failed: {reason}");
+						IsTagsLoaded = false;
+					});
+			}
+		}
 		
 		public static bool SetUpdateActivityPrefix(ref bool isPlaying,ref string levelInfo, ref DiscordManager __instance)
 		{
