@@ -3,6 +3,7 @@ using Assets.Scripts.PeroTools.Managers;
 using Assets.Scripts.PeroTools.Nice.Datas;
 using Assets.Scripts.PeroTools.Nice.Interface;
 using Discord;
+using FormulaBase;
 using HarmonyLib;
 using ModHelper;
 using Newtonsoft.Json.Linq;
@@ -20,8 +21,8 @@ namespace DiscordPlus
 			896044493839679498L, // 41 - 
 		};
 		public static int ClientSelected = 0;
-		public static bool IsTagsLoaded = false;
-		public static JToken Tags = null;
+		public static bool ChartDataLoaded = false;
+		public static JArray ChartData = null;
         public static void DoPatching()
         {
             var harmony = new Harmony("com.github.mo10.discordplus");
@@ -38,22 +39,21 @@ namespace DiscordPlus
 		public static void DiscordPrefix(ref long clientId, ref ulong flags)
 		{
 			clientId = ClientIds[ClientSelected];
-			if (!IsTagsLoaded)
+			if (!ChartDataLoaded)
 			{
-				IsTagsLoaded = true;
+				ChartDataLoaded = true;
 				WebUtils.SendToUrl(
-					url: "https://mdmc.moe/api/tags",
+					url: "https://mdmc.moe/api/data/charts",
 					method: "GET",
 					failTime: 10,
 					callback: handler =>
 					{
-						ModLogger.Debug(handler.text);
-						Tags = JsonUtils.Deserialize<JToken>(handler.text);
+						ChartData = JArray.Parse(handler.text);
 					},
 					faillCallback: reason =>
 					{
 						ModLogger.Debug($"Send request failed: {reason}");
-						IsTagsLoaded = false;
+						ChartDataLoaded = false;
 					});
 			}
 		}
@@ -65,11 +65,13 @@ namespace DiscordPlus
 				return false;
 			}
 
+
 			string musicUid = Singleton<DataManager>.instance["Account"]["SelectedMusicUid"].GetResult<string>();
 			string musicPackage = Singleton<DataManager>.instance["Account"]["SelectedAlbumUid"].GetResult<string>();
 			string musicLevel = Singleton<DataManager>.instance["Account"]["SelectedMusicLevel"].GetResult<string>();
 			int diffculty = Singleton<DataManager>.instance["Account"]["SelectedDifficulty"].GetResult<int>();
-			
+
+
 			string diffcultyStr = string.Empty;
             switch (diffculty)
             {
@@ -109,6 +111,13 @@ namespace DiscordPlus
 					&& musicUid != "39-8")
 				{
 					coverName = musicUid;
+				}
+				else if (musicPackage == "music_package_999")
+                {
+					string songName = Singleton<DataManager>.instance["Account"]["SelectedMusicName"].GetResult<string>();
+					JToken chart = ChartData.SelectToken($"$.[?(@.name=='{songName}')]");
+
+					if (chart != null) coverName = $"mdmc_{chart["id"]}";
 				}
 
 				activity = new Activity
